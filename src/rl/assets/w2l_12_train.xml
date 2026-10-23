@@ -1,0 +1,159 @@
+<?xml version='1.0' encoding='utf-8'?>
+<mujoco model="w2l_12_train">
+  <compiler angle="radian" meshdir="../../../model/meshes" autolimits="true" />
+  <option timestep="0.002" integrator="implicitfast" cone="elliptic" impratio="10" gravity="0 0 -9.81" />
+  <size njmax="4000" nconmax="800" />
+  <statistic center="0 0 0.11" extent="0.28" />
+  <visual>
+    <global offwidth="1920" offheight="1080" />
+    <headlight ambient="0.34 0.34 0.37" diffuse="0.62 0.62 0.62" specular="0.12 0.12 0.12" />
+    <quality shadowsize="4096" offsamples="8" />
+    <map znear="0.004" zfar="8" shadowclip="1.5" />
+  </visual>
+  <default>
+    <joint type="hinge" damping="0.06" armature="0.002" frictionloss="0.01" />
+    <default class="visual">
+      <geom contype="0" conaffinity="0" group="1" density="0" material="mat_printed" />
+    </default>
+    <default class="collision">
+      <geom contype="1" conaffinity="1" group="3" condim="3" friction="0.7 0.02 0.002" solref="0.006 1" solimp="0.9 0.95 0.001" rgba="0.95 0.45 0.10 0.40" />
+    </default>
+    <default class="wheel_collision">
+      <geom contype="1" conaffinity="1" group="3" condim="4" friction="1.2 0.02 0.002" solref="0.004 1" solimp="0.92 0.96 0.001" rgba="0.95 0.45 0.10 0.40" />
+    </default>
+    <default class="servo">
+      <position kp="26" kv="1.6" forcerange="-0.98 0.98" />
+    </default>
+    <default class="wheelmotor">
+      <velocity kv="0.7" forcerange="-0.29 0.29" />
+    </default>
+    <default class="servo_torque">
+      <motor gear="1" forcerange="-0.98 0.98" />
+    </default>
+    <default class="wheel_torque">
+      <motor gear="1" forcerange="-0.29 0.29" />
+    </default>
+  </default>
+  <asset>
+    <texture name="tex_grid" type="2d" builtin="checker" rgb1="0.26 0.28 0.30" rgb2="0.33 0.35 0.38" width="512" height="512" />
+    <material name="mat_floor" texture="tex_grid" texrepeat="8 8" reflectance="0.05" />
+    <material name="mat_tire" rgba="0.09 0.09 0.1 1" specular="0.32" shininess="0.3" />
+    <material name="mat_servo" rgba="0.14 0.15 0.17 1" specular="0.32" shininess="0.3" />
+    <material name="mat_motor" rgba="0.28 0.29 0.32 1" specular="0.32" shininess="0.3" />
+    <material name="mat_battery" rgba="0.1 0.22 0.55 1" specular="0.32" shininess="0.3" />
+    <material name="mat_pcb" rgba="0.08 0.34 0.16 1" specular="0.32" shininess="0.3" />
+    <material name="mat_metal" rgba="0.62 0.64 0.68 1" specular="0.32" shininess="0.3" reflectance="0.2" />
+    <material name="mat_printed" rgba="0.83 0.84 0.86 1" specular="0.32" shininess="0.3" />
+    <material name="mat_carbon" rgba="0.16 0.17 0.19 1" specular="0.32" shininess="0.3" />
+    <mesh name="part_009_part" file="part_009_part.stl" />
+    <mesh name="part_010_part" file="part_010_part.stl" />
+    <mesh name="part_013_part" file="part_013_part.stl" />
+    <mesh name="part_016_part" file="part_016_part.stl" />
+    </asset>
+  <worldbody>
+    <light name="key" pos="0.7 0.5 1.5" dir="-0.4 -0.3 -1" directional="true" diffuse="0.72 0.72 0.72" specular="0.22 0.22 0.22" castshadow="true" />
+    <light name="fill" pos="-0.9 -0.7 0.9" dir="0.5 0.45 -1" directional="true" diffuse="0.26 0.28 0.32" specular="0.04 0.04 0.04" castshadow="false" />
+    <geom name="floor" type="plane" size="4 4 0.02" material="mat_floor" group="0" contype="1" conaffinity="1" friction="1.0 0.02 0.002" />
+    <camera name="overview" pos="0.46 -0.50 0.34" xyaxes="0.74 0.67 0 -0.20 0.22 0.95" />
+    <camera name="side" pos="0 0.66 0.14" xyaxes="-1 0 0 0 0 1" />
+    <camera name="front" pos="0.66 0 0.14" xyaxes="0 1 0 0 0 1" />
+  </worldbody>
+  <worldbody>
+    <body name="base" pos="0 0 0.122456">
+      <freejoint name="root" />
+      <site name="imu" pos="0 0 0" size="0.006" />
+      <inertial pos="-0.001044 -0.000186 0.009661" mass="0.455780" fullinertia="0.000308489561 0.000595892118 0.000871953232 -4.75016487e-07 4.27157561e-06 2.34413036e-07" />
+      <geom name="base_collision" class="collision" type="box" size="0.061983 0.04185 0.01564" pos="0 0 0.010677" />
+        <body name="hip_FL" pos="-0.0659 0.036 0.003885">
+          <inertial pos="-0.008953 0.005251 0.000032" mass="0.069826" fullinertia="2.72733301e-06 1.00480039e-06 3.01879212e-06 -2.08352975e-07 8.7462639e-09 -1.35123526e-08" />
+          <joint name="roll_FL" type="hinge" axis="1 0 0" range="-1.57080 1.57080" ref="0.00000" />
+          <body name="thigh_FL" pos="-0.009 0.02365 -0.005792">
+            <inertial pos="0.010116 0.007832 -0.014471" mass="0.011605" fullinertia="2.25296954e-06 1.88517451e-06 1.60704478e-06 -5.83028407e-07 8.85295079e-07 8.16661789e-07" />
+            <geom class="collision" type="mesh" mesh="part_010_part" pos="0.014991 0.002 -0.025986" quat="0.353654 0.612314 -0.612314 -0.353654" />
+            <geom class="collision" type="mesh" mesh="part_009_part" pos="0.014991 0.005 -0.025986" quat="0 0.965968 0 0.258661" />
+            <geom class="collision" type="mesh" mesh="part_016_part" pos="0 0 0" quat="0 -0.865943 0 0.500142" />
+            <joint name="hip_FL" type="hinge" axis="0 1 0" range="-3.14159 3.14159" ref="-0.52360" />
+            <body name="calf_FL" pos="0.029989 0.0272 -0.051943">
+              <inertial pos="-0.021251 -0.007202 -0.01781" mass="0.102354" fullinertia="3.32205294e-05 7.17961327e-05 4.55266188e-05 3.17133146e-06 -3.49900088e-05 2.65924766e-06" />
+              <joint name="knee_FL" type="hinge" axis="0 1 0" range="-2.35619 2.35619" ref="1.39626" />
+              <body name="wheel_FL" pos="-0.045977 0.01255 -0.038579">
+                <inertial pos="-0.000029 -0.007086 -0.000003" mass="0.015915" fullinertia="4.47945139e-10 8.33673688e-10 4.46277268e-10 7.99620756e-15 2.81905922e-13 -3.22336167e-14" />
+                <geom name="wheel_FL_collision" class="wheel_collision" type="cylinder" size="0.03000 0.00900" pos="0 -0.009 0" quat="0.707107 -0.707107 0 0" />
+                <joint name="wheel_FL" type="hinge" axis="0 1 0" damping="0.002" armature="0.0002" frictionloss="0.004" />
+              </body>
+            </body>
+          </body>
+        </body>
+        <body name="hip_RR" pos="0.0659 -0.036 0.003885">
+          <inertial pos="0.008953 -0.005251 0.000032" mass="0.069826" fullinertia="2.72733302e-06 1.00480039e-06 3.01879213e-06 -2.08352975e-07 -8.74626482e-09 1.35124041e-08" />
+          <joint name="roll_RR" type="hinge" axis="-1 0 0" range="-1.57080 1.57080" ref="0.00000" />
+          <body name="thigh_RR" pos="0.009 -0.02365 -0.005792">
+            <inertial pos="0.010128 -0.007877 -0.014493" mass="0.011602" fullinertia="2.26812713e-06 1.8908562e-06 1.61958046e-06 5.8750811e-07 8.87845447e-07 -8.23509152e-07" />
+            <geom class="collision" type="mesh" mesh="part_016_part" pos="0 0 0" quat="0.500187 0 -0.865917 0" />
+            <geom class="collision" type="mesh" mesh="part_010_part" pos="0.014989 0 -0.025987" quat="0.353686 0.612296 -0.612296 -0.353686" />
+            <geom class="collision" type="mesh" mesh="part_013_part" pos="0.014989 -0.002 -0.025987" quat="0.683052 0.683052 -0.182865 0.182865" />
+            <joint name="hip_RR" type="hinge" axis="0 1 0" range="-3.14159 3.14159" ref="-0.52360" />
+            <body name="calf_RR" pos="0.029993 -0.0272 -0.05195">
+              <inertial pos="-0.021229 0.007202 -0.017836" mass="0.102354" fullinertia="3.31882573e-05 7.17961344e-05 4.55588923e-05 -3.16954347e-06 -3.49843191e-05 -2.66137812e-06" />
+              <joint name="knee_RR" type="hinge" axis="0 1 0" range="-2.35619 2.35619" ref="1.39626" />
+              <body name="wheel_RR" pos="-0.045977 -0.01255 -0.038579">
+                <inertial pos="0.000024 0.007086 -0.000018" mass="0.015915" fullinertia="4.47225387e-10 8.33673687e-10 4.4699702e-10 2.38359227e-14 -8.72858306e-13 2.31255124e-14" />
+                <geom name="wheel_RR_collision" class="wheel_collision" type="cylinder" size="0.03000 0.00900" pos="0 0.009 0" quat="0.707107 -0.707107 0 0" />
+                <joint name="wheel_RR" type="hinge" axis="0 1 0" damping="0.002" armature="0.0002" frictionloss="0.004" />
+              </body>
+            </body>
+          </body>
+        </body>
+        <body name="hip_FR" pos="-0.0659 -0.036 0.003885">
+          <inertial pos="-0.008954 -0.005251 0.000032" mass="0.069826" fullinertia="2.72733382e-06 1.00480284e-06 3.01879422e-06 2.06993397e-07 -8.53625703e-09 1.36093168e-08" />
+          <joint name="roll_FR" type="hinge" axis="-1 0 0" range="-1.57080 1.57080" ref="0.00000" />
+          <body name="thigh_FR" pos="-0.009 -0.02365 -0.005792">
+            <inertial pos="0.01014 -0.007877 -0.014484" mass="0.011602" fullinertia="2.26664125e-06 1.89085627e-06 1.62106639e-06 5.88196821e-07 8.88386783e-07 -8.23017397e-07" />
+            <geom class="collision" type="mesh" mesh="part_016_part" pos="0 0 0" quat="0.499825 0 -0.866126 0" />
+            <geom class="collision" type="mesh" mesh="part_010_part" pos="0.015011 0 -0.025975" quat="0.35343 0.612444 -0.612444 -0.35343" />
+            <geom class="collision" type="mesh" mesh="part_013_part" pos="0.015011 -0.002 -0.025975" quat="0.682976 0.682976 -0.183151 0.183151" />
+            <joint name="hip_FR" type="hinge" axis="0 1 0" range="-3.14159 3.14159" ref="-0.52360" />
+            <body name="calf_FR" pos="0.029991 -0.0272 -0.051945">
+              <inertial pos="-0.021229 0.007202 -0.017836" mass="0.102354" fullinertia="3.31882576e-05 7.17961341e-05 4.55588923e-05 -3.16954361e-06 -3.4984319e-05 -2.66137826e-06" />
+              <joint name="knee_FR" type="hinge" axis="0 1 0" range="-2.35619 2.35619" ref="1.39626" />
+              <body name="wheel_FR" pos="-0.045977 -0.01255 -0.038579">
+                <inertial pos="-0.000013 0.007086 -0.000027" mass="0.015915" fullinertia="4.4668049e-10 8.33673688e-10 4.47541916e-10 2.7222432e-14 7.677272e-13 -1.90235441e-14" />
+                <geom name="wheel_FR_collision" class="wheel_collision" type="cylinder" size="0.03000 0.00900" pos="0 0.009 0" quat="0.707107 -0.707107 0 0" />
+                <joint name="wheel_FR" type="hinge" axis="0 1 0" damping="0.002" armature="0.0002" frictionloss="0.004" />
+              </body>
+            </body>
+          </body>
+        </body>
+        <body name="hip_RL" pos="0.0659 0.036 0.003885">
+          <inertial pos="0.008954 0.005251 0.000032" mass="0.069826" fullinertia="2.72733383e-06 1.00480284e-06 3.01879423e-06 2.06993397e-07 8.53625577e-09 -1.36093862e-08" />
+          <joint name="roll_RL" type="hinge" axis="1 0 0" range="-1.57080 1.57080" ref="0.00000" />
+          <body name="thigh_RL" pos="0.009 0.02365 -0.005792">
+            <inertial pos="0.010116 0.007832 -0.014471" mass="0.011605" fullinertia="2.25306961e-06 1.88517441e-06 1.60694472e-06 -5.82982223e-07 8.85258515e-07 8.1669471e-07" />
+            <geom class="collision" type="mesh" mesh="part_010_part" pos="0.01499 0.002 -0.025987" quat="0.353671 0.612304 -0.612304 -0.353671" />
+            <geom class="collision" type="mesh" mesh="part_009_part" pos="0.01499 0.005 -0.025987" quat="0 0.965976 0 0.258633" />
+            <geom class="collision" type="mesh" mesh="part_016_part" pos="0 0 0" quat="0 -0.865929 0 0.500167" />
+            <joint name="hip_RL" type="hinge" axis="0 1 0" range="-3.14159 3.14159" ref="-0.52360" />
+            <body name="calf_RL" pos="0.03001 0.02715 -0.051979">
+              <inertial pos="-0.021251 -0.007202 -0.01781" mass="0.102354" fullinertia="3.32205298e-05 7.17961345e-05 4.55266204e-05 3.17133109e-06 -3.49900096e-05 2.65924728e-06" />
+              <joint name="knee_RL" type="hinge" axis="0 1 0" range="-2.35619 2.35619" ref="1.39626" />
+              <body name="wheel_RL" pos="-0.045977 0.01255 -0.038579">
+                <inertial pos="-0.000011 -0.007086 -0.000027" mass="0.015915" fullinertia="4.4640431e-10 8.33673687e-10 4.47818097e-10 3.22663997e-14 5.24615414e-13 -7.86384636e-15" />
+                <geom name="wheel_RL_collision" class="wheel_collision" type="cylinder" size="0.03000 0.00900" pos="0 -0.009 0" quat="0.707107 -0.707107 0 0" />
+                <joint name="wheel_RL" type="hinge" axis="0 1 0" damping="0.002" armature="0.0002" frictionloss="0.004" />
+              </body>
+            </body>
+          </body>
+        </body>
+    </body>
+  </worldbody>
+  
+  <actuator><position name="roll_FL" joint="roll_FL" class="servo" /><position name="hip_FL" joint="hip_FL" class="servo" /><position name="knee_FL" joint="knee_FL" class="servo" /><position name="roll_FR" joint="roll_FR" class="servo" /><position name="hip_FR" joint="hip_FR" class="servo" /><position name="knee_FR" joint="knee_FR" class="servo" /><position name="roll_RL" joint="roll_RL" class="servo" /><position name="hip_RL" joint="hip_RL" class="servo" /><position name="knee_RL" joint="knee_RL" class="servo" /><position name="roll_RR" joint="roll_RR" class="servo" /><position name="hip_RR" joint="hip_RR" class="servo" /><position name="knee_RR" joint="knee_RR" class="servo" /><velocity name="wheel_FL" joint="wheel_FL" class="wheelmotor" /><velocity name="wheel_FR" joint="wheel_FR" class="wheelmotor" /><velocity name="wheel_RL" joint="wheel_RL" class="wheelmotor" /><velocity name="wheel_RR" joint="wheel_RR" class="wheelmotor" /></actuator><sensor>
+    <framequat name="base_quat" objtype="body" objname="base" />
+    <gyro name="base_gyro" site="imu" />
+    <accelerometer name="base_acc" site="imu" />
+  </sensor>
+  <keyframe>
+    <key name="stand" qpos="0 0 0.122456 1 0 0 0 0 -0.523599 1.396263 0 0 -0.523599 1.396263 0 0 -0.523599 1.396263 0 0 -0.523599 1.396263 0" ctrl="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0" />
+    <key name="zero" qpos="0 0 0.122456 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0" ctrl="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0" />
+  </keyframe>
+</mujoco>

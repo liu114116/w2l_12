@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# 训练日志 / 中间 checkpoint（只保留最终 model.zip 和导出的 onnx）
+src/rl/logs/
+src/rl/checkpoints/**/model_*_steps.zip
+
+# 临时文件
+*.tmp
+*.log
+Thumbs.db
+desktop.ini
+.vscode/

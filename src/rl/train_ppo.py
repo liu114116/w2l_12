@@ -1,4 +1,4 @@
-"""w2l_12 轮腿机器人 —— PPO 训练入口。
+﻿"""w2l_12 轮腿机器人 —— PPO 训练入口。
 
     python src/rl/train_ppo.py --tag v1 --num-envs 16 --steps 30e6
 
@@ -116,16 +116,12 @@ class TrackingEvalCallback(BaseCallback):
 
 def build_cfg(args: argparse.Namespace) -> EnvCfg:
     cfg = EnvCfg()
-    if args.torque:
-        from w2l_env import ASSET_TORQUE
-
-        cfg.xml = str(ASSET_TORQUE)
-        cfg.action_mode = "torque"
     cfg.cmd_lin_x = args.cmd_vx
     cfg.cmd_lin_y = args.cmd_vy
     cfg.cmd_ang_z = args.cmd_wz
     cfg.seed = args.seed
     cfg.zero_cmd_prob = args.zero_cmd_prob
+    cfg.curriculum_steps = args.curriculum_steps
     if args.slope_deg > 0:
         cfg.slope_max_deg = args.slope_deg
     if args.rew:
@@ -150,12 +146,12 @@ def main() -> int:
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--device", default="cpu", help="PPO 网络跑 cpu 通常比 cuda 快（批量太小）")
     p.add_argument("--cmd-vx", type=float, default=0.6)
-    p.add_argument("--cmd-vy", type=float, default=0.4)
-    p.add_argument("--cmd-wz", type=float, default=1.0)
+    p.add_argument("--cmd-vy", type=float, default=0.12)
+    p.add_argument("--cmd-wz", type=float, default=0.8)
     p.add_argument("--slope-deg", type=float, default=0.0)
     p.add_argument("--rew", default=None, help="临时覆盖奖励权重，如 'track_ang_vel=3.0,alive=0.5'")
-    p.add_argument("--zero-cmd-prob", type=float, default=0.15, help="抽到\"站住\"指令的概率")
-    p.add_argument("--torque", action="store_true", help="直接用纯力矩模式（策略输出力矩）")
+    p.add_argument("--zero-cmd-prob", type=float, default=0.25, help="抽到\"站住\"指令的概率")
+    p.add_argument("--curriculum-steps", type=float, default=12e6, help="指令范围放大到 100% 所需步数")
     p.add_argument("--resume", default=None, help="从某个 model.zip 继续训练")
     p.add_argument("--eval-every", type=int, default=500_000)
     p.add_argument("--ckpt-every", type=int, default=1_000_000)
@@ -213,6 +209,7 @@ def main() -> int:
             seed=args.seed,
         )
 
+
     callbacks = [
         CheckpointCallback(
             save_freq=max(1, args.ckpt_every // args.num_envs),
@@ -236,7 +233,6 @@ def main() -> int:
     contract = deploy_contract(control_freq_hz=1.0 / cfg.control_dt, filter_hz=cfg.action_filter_hz)
     contract["trained_steps"] = int(model.num_timesteps)
     contract["tag"] = args.tag
-    contract["action_mode"] = cfg.action_mode
     contract["policy"] = {"sb3_zip": f"checkpoints/{args.tag}/model.zip", "onnx": "models/policy.onnx"}
     contract["env_cfg"] = json.loads(json.dumps(cfg.to_dict(), default=str))
     with open(RL_DIR / "deploy.yaml", "w", encoding="utf-8") as f:

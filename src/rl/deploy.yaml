@@ -1,5 +1,5 @@
 robot: w2l_12
-contract_version: 1
+contract_version: 2
 control_freq_hz: 50.0
 action_filter_hz: 10.0
 obs_dim: 53
@@ -35,7 +35,8 @@ obs_layout:
   unit: rad/s
 - name: last_action
   size: 16
-  scale: 1.0
+  scale: ((target - neutral) / action_scale)
+  unit: 归一化动作
 leg_joint_order:
 - roll_FL
 - hip_FL
@@ -68,46 +69,43 @@ default_leg_pos:
 - -0.5236
 - 1.3963
 action:
-  leg_pos_scale:
-  - 0.125
-  - 0.25
-  - 0.25
-  - 0.125
-  - 0.25
-  - 0.25
-  - 0.125
-  - 0.25
-  - 0.25
-  - 0.125
-  - 0.25
-  - 0.25
-  wheel_vel_scale: 25.0
-  leg_target_limit:
-  - - -1.4835
-    - -3.0543
-    - -2.2689
-    - -1.4835
-    - -3.0543
-    - -2.2689
-    - -1.4835
-    - -3.0543
-    - -2.2689
-    - -1.4835
-    - -3.0543
-    - -2.2689
-  - - 1.4835
-    - 3.0543
-    - 2.2689
-    - 1.4835
-    - 3.0543
-    - 2.2689
-    - 1.4835
-    - 3.0543
-    - 2.2689
-    - 1.4835
-    - 3.0543
-    - 2.2689
-  note: action[0:12] -> q_des = default + a*scale; action[12:16] -> w_des = a*wheel_vel_scale
+  format: absolute
+  layout: 0:12 = 12 个腿部目标角 (rad, 绝对角)；12:16 = 4 个轮子目标角速度 (rad/s)
+  low:
+  - -1.4835
+  - -3.0543
+  - -2.2689
+  - -1.4835
+  - -3.0543
+  - -2.2689
+  - -1.4835
+  - -3.0543
+  - -2.2689
+  - -1.4835
+  - -3.0543
+  - -2.2689
+  - -25.0
+  - -25.0
+  - -25.0
+  - -25.0
+  high:
+  - 1.4835
+  - 3.0543
+  - 2.2689
+  - 1.4835
+  - 3.0543
+  - 2.2689
+  - 1.4835
+  - 3.0543
+  - 2.2689
+  - 1.4835
+  - 3.0543
+  - 2.2689
+  - 25.0
+  - 25.0
+  - 25.0
+  - 25.0
+  note: 策略输出即目标值，限幅后直接写进 ctrl / 下位机
 servo:
   kp_leg: 26.0
   kd_leg: 1.6
@@ -117,33 +115,28 @@ servo:
   law: tau = kp*(q_des - q) - kd*qd  (per leg joint, clipped)
 command_limits:
   vx: 0.55
-  vy: 0.15
+  vy: 0.12
   wz: 0.45
 stand_height_m: 0.122456
 forward_axis_note: 模型前方是 -x；指令 vx>0 表示机器人朝自己的前方走
-trained_steps: 12003584
-tag: v1
-action_mode: servo
+trained_steps: 16007168
+tag: v4
 policy:
-  sb3_zip: checkpoints/v1/model.zip
+  sb3_zip: checkpoints/v4/model.zip
   onnx: models/policy.onnx
-  sha256_16: 28b3bbfd3bc211f6
-  trained_steps: 12003584
-  onnx_norm: models/policy_norm.onnx
-  output_format: targets
-  output_layout: 0:12 leg target angles (rad, absolute); 12:16 wheel target speeds
-    (rad/s)
+  sha256_16: d430dd2011d6d4e9
+  trained_steps: 15001280
+  output_format: absolute
 env_cfg:
   xml: D:\project\robot_leg\mujoco\w2l_12\src\rl\assets\w2l_12_train.xml
-  action_mode: servo
   sim_dt: 0.002
   decimation: 10
   episode_steps: 500
   cmd_lin_x: 0.6
-  cmd_lin_y: 0.12
+  cmd_lin_y: 0.4
   cmd_ang_z: 1.0
   curriculum_start: 0.35
-  curriculum_steps: 30000000.0
+  curriculum_steps: 1.0
   cmd_resample_steps: 250
   zero_cmd_prob: 0.15
   action_filter_hz: 10.0
@@ -180,7 +173,7 @@ env_cfg:
   terminate_base_contact: true
   rewards:
     track_lin_vel: 2.0
-    track_ang_vel: 2.8
+    track_ang_vel: 1.5
     lin_vel_z: -1.0
     ang_vel_xy: -0.05
     orientation: -2.5
@@ -192,21 +185,7 @@ env_cfg:
     collision: -1.5
     dof_limits: -2.0
     stand_still: -0.6
+    stand_vel: -4.0
     alive: 0.6
   target_height: 0.122456
   seed: 0
-note_limits: training curriculum uses 0.6/0.4/1.0; deployment limits are clipped to
-  what the hardware can actually track (parallel wheels cannot strafe; yaw is limited
-  by tyre scrub)
-stand_regulator:
-  v_eps: 0.03
-  kp_v: 30.0
-  ki_v: 10.0
-  kp_w: 0.0
-  ki_w: 0.0
-  db_v: 0.01
-  db_w: 0.0
-  max_delta: 10.0
-  ramp_s: 0.3
-  int_limit: 0.5
-  lpf_hz: 8.0

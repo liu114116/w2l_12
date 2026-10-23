@@ -1,7 +1,7 @@
 {
-  "source": "checkpoints/v1/model.zip",
+  "source": "checkpoints/v4/model.zip",
   "onnx": "policy.onnx",
-  "sha256_16": "28b3bbfd3bc211f6",
+  "sha256_16": "d430dd2011d6d4e9",
   "input": {
     "name": "obs",
     "shape": [
@@ -17,12 +17,48 @@
       16
     ],
     "dtype": "float32",
-    "format": "targets",
+    "format": "absolute",
     "layout": "0:12 = 12 \u4e2a\u817f\u90e8\u76ee\u6807\u89d2 (rad, \u7edd\u5bf9\u89d2)\uff1b12:16 = 4 \u4e2a\u8f6e\u5b50\u76ee\u6807\u89d2\u901f\u5ea6 (rad/s)",
-    "note": "\u5df2\u628a action_scale / \u9ed8\u8ba4\u7ad9\u59ff / \u5173\u8282\u9650\u4f4d\u70d8\u8fdb\u7f51\u7edc\uff0c\u8f93\u51fa\u53ef\u76f4\u63a5\u4e0b\u53d1"
+    "limits": {
+      "low": [
+        -1.4835,
+        -3.0543,
+        -2.2689,
+        -1.4835,
+        -3.0543,
+        -2.2689,
+        -1.4835,
+        -3.0543,
+        -2.2689,
+        -1.4835,
+        -3.0543,
+        -2.2689,
+        -25.0,
+        -25.0,
+        -25.0,
+        -25.0
+      ],
+      "high": [
+        1.4835,
+        3.0543,
+        2.2689,
+        1.4835,
+        3.0543,
+        2.2689,
+        1.4835,
+        3.0543,
+        2.2689,
+        1.4835,
+        3.0543,
+        2.2689,
+        25.0,
+        25.0,
+        25.0,
+        25.0
+      ]
+    }
   },
-  "norm_onnx": "policy_norm.onnx",
-  "trained_steps": 12003584,
+  "trained_steps": 15001280,
   "net_arch": [
     256,
     128,

@@ -1,4 +1,4 @@
-"""w2l_12 轮腿机器人 —— 遥控接口（唯一入口）。
+﻿"""w2l_12 轮腿机器人 —— 遥控接口（唯一入口）。
 
 在 MuJoCo 里跑训练好的策略，用**键盘**或**手柄**实时遥控；
 以后接 SLAM 时，只要把 ``CommandSource`` 换成 ROS / 导航模块发布的
@@ -68,14 +68,12 @@ from robot_cfg import (  # noqa: E402
     KP_LEG,
     KV_WHEEL,
     LEG_JOINTS,
-    STAND_REG,
-    StandRegulator,
+    NEUTRAL_ACTION,
     TAU_LEG_LIMIT,
     TAU_WHEEL_LIMIT,
     WHEEL_JOINTS,
-    action_to_ctrl,
     build_obs,
-    targets_to_action,
+    clip_target,
 )
 
 DEFAULT_POLICY = RL_DIR / "models" / "policy.onnx"
@@ -435,7 +433,7 @@ def main() -> int:
     p.add_argument("--record", type=Path, default=None, help="录 mp4")
     p.add_argument("--camera", default=None,
                    help="用 XML 里的固定相机（overview/side/front）；默认自由相机 + 鼠标控制")
-    p.add_argument("--no-reg", action="store_true", help="关掉静止调节器（对比用）")
+
     p.add_argument("--snap", type=Path, default=None, help="运行中截一张窗口图到 PNG")
     args = p.parse_args()
 
@@ -485,20 +483,7 @@ def main() -> int:
     print(f"[sim] 执行器 = {'XML 内置位置/速度伺服' if servo_in_xml else '力矩环（脚本里算 PD）'}")
 
     policy = Policy(args.policy)
-    # 输出格式：policy.onnx 是"12 目标角 + 4 目标轮速"，policy_norm.onnx 是归一化动作
-    out_fmt = "norm"
-    side = Path(str(args.policy) + ".json")
-    if side.exists():
-        try:
-            import json
-
-            out_fmt = json.loads(side.read_text(encoding="utf-8")).get("output", {}).get("format", "norm")
-        except Exception:                           # noqa: BLE001
-            pass
-    elif args.policy.name == "policy.onnx":
-        out_fmt = "targets"
-    print(f"[policy] 输出格式 = {out_fmt} "
-          f"({'12 个腿部目标角(rad) + 4 个轮速(rad/s)' if out_fmt == 'targets' else '归一化动作 [-1,1]'})")
+    print("[policy] 输出 = 12 个腿部目标角 (rad) + 4 个轮子目标角速度 (rad/s)")
 
     dt = 0.02
     substeps = 10
@@ -508,18 +493,17 @@ def main() -> int:
     bridge = SerialBridge(args.serial, args.baud) if args.serial else None
 
     alpha = 1.0 - math.exp(-2.0 * math.pi * filter_hz * dt)
-    filtered_action = np.zeros(ACT_DIM)
-    last_action = np.zeros(ACT_DIM)
-    regulator = StandRegulator(dt)          # 静止时压残余漂移（不改策略）
-    use_reg = not args.no_reg
+    filtered_action = NEUTRAL_ACTION.copy()
+    last_action = NEUTRAL_ACTION.copy()
+
 
     def reset() -> None:
         mujoco.mj_resetDataKeyframe(model, data, 0)
         mujoco.mj_forward(model, data)
-        filtered_action[:] = 0.0
-        last_action[:] = 0.0
+        filtered_action[:] = NEUTRAL_ACTION
+        last_action[:] = NEUTRAL_ACTION
         cmd_src.cmd[:] = 0.0
-        regulator.reset()
+
         for i in range(4):
             data.xfrc_applied[base_id, :] = 0.0
 
@@ -587,15 +571,11 @@ def main() -> int:
             obs = build_obs(data.qvel[3:6], grav, cmd, data.qpos[leg_qadr],
                             data.qvel[leg_dadr], data.qvel[wheel_dadr], last_action)
 
-            out = policy(obs)
-            action = targets_to_action(out) if out_fmt == "targets" else np.clip(out, -1.0, 1.0)
-            filtered_action += alpha * (action - filtered_action)
-            last_action = action.copy()
-
-            ctrl = action_to_ctrl(filtered_action)
-            v_body = rot.T @ data.qvel[0:3]
-            if use_reg:
-                ctrl = regulator.update(ctrl, -v_body[0], data.qvel[5], cmd)
+            # 策略输出就是 12 个目标角 (rad) + 4 个轮速 (rad/s)，限幅后直接用
+            target = clip_target(policy(obs))
+            filtered_action += alpha * (target - filtered_action)
+            ctrl = filtered_action.copy()
+            last_action = ctrl.copy()          # 观测里的 last_action 就是上一步的目标
             if servo_in_xml:
                 data.ctrl[act_leg] = ctrl[:12]
                 data.ctrl[act_wheel] = ctrl[12:]
@@ -618,7 +598,7 @@ def main() -> int:
                 hud = (f"cmd  vx {cmd[0]:+.2f}  vy {cmd[1]:+.2f}  wz {cmd[2]:+.2f}   "
                        f"meas vx {-v[0]:+.2f}  wz {data.qvel[5]:+.2f}   h {data.qpos[2]*1000:.0f}mm")
                 info = (f"{'PAD' if cmd_src.use_gamepad else 'KEY'}  x{cmd_src.scale:.1f}  "
-                        f"{'REG' if regulator.blend > 0.5 else '   '}  {viewer.camera_mode()}")
+                        f"{viewer.camera_mode()}")
                 help_text = ("WASD move | QE turn | SPACE stop | R reset | [ ] speed | "
                              "G pad | F follow | V view | H help | ESC quit")
                 help_right = ""
@@ -634,8 +614,7 @@ def main() -> int:
                 v = rot.T @ data.qvel[0:3]
                 print(f"t={step*dt:6.2f}s cmd=[{cmd[0]:+.2f} {cmd[1]:+.2f} {cmd[2]:+.2f}] "
                       f"v=[{-v[0]:+.2f} {-v[1]:+.2f} {data.qvel[5]:+.2f}] "
-                      f"h={data.qpos[2]*1000:5.1f}mm pos=({data.qpos[0]:+.2f},{data.qpos[1]:+.2f}) "
-                      f"{'REG' if regulator.blend > 0.5 else '---'}", flush=True)
+                      f"h={data.qpos[2]*1000:5.1f}mm pos=({data.qpos[0]:+.2f},{data.qpos[1]:+.2f})", flush=True)
 
             if args.seconds > 0 and step * dt >= args.seconds:
                 break

@@ -1,13 +1,12 @@
-"""w2l_12 轮腿机器人 —— 强化学习训练环境（MuJoCo + Gymnasium）。
+﻿"""w2l_12 轮腿机器人 —— 强化学习训练环境（MuJoCo + Gymnasium）。
 
 设计要点（对齐 legged_gym / RC_WheelLeg 的成熟做法）：
 
-* **动作 16 维**：12 个腿部目标角 + 4 个轮子目标角速度。
+* **动作 16 维，直接是物理量**：12 个腿部目标角 (rad) + 4 个轮子目标角速度 (rad/s)。
+  没有 action_scale / default_pose 换算，策略输出限幅后直接写进 ctrl。
   腿部在仿真里是 position 伺服（kp/kv），真机上就是"力矩环里跑 PD"，
   数学上等价：``tau = kp*(q_des - q) - kv*qd``，限幅 ±0.98 N·m。
   轮子是 velocity 伺服，限幅 ±0.29 N·m。
-  想要策略直接出力矩，把 ``cfg.action_mode`` 设成 ``"torque"``，配合
-  ``prepare_assets.py --torque`` 生成的模型即可。
 * **观测 53 维**：与部署端共享同一份代码（robot_cfg / PolicyRuntime），
   训练-部署不会对不上。
 * **速度指令跟踪**：``vx, vy, wz`` 三个量就是以后 SLAM / 遥控器的接口。
@@ -36,6 +35,9 @@ if str(_HERE) not in sys.path:            # 让 scripts/ 里的脚本也能 impo
     sys.path.insert(0, str(_HERE))
 
 from robot_cfg import (  # noqa: E402
+    ACTION_HIGH,
+    ACTION_LOW,
+    ACTION_SCALE,
     ACTION_SCALE_LEG,
     ACT_DIM,
     build_obs,
@@ -43,32 +45,33 @@ from robot_cfg import (  # noqa: E402
     JOINT_POS_HIGH,
     JOINT_POS_LOW,
     LEG_JOINTS,
+    NEUTRAL_ACTION,
     OBS_CLIP,
     OBS_DIM,
     STAND_HEIGHT,
     WHEEL_JOINTS,
+    WHEEL_SPEED_LIMIT,
     WHEEL_VEL_SCALE,
 )
 
 ASSET = Path(__file__).resolve().parent / "assets" / "w2l_12_train.xml"
-ASSET_TORQUE = Path(__file__).resolve().parent / "assets" / "w2l_12_train_torque.xml"
 
 #: 奖励权重（名字 -> 权重），改这里就能调；训练日志里会打印
 DEFAULT_REWARDS = {
     "track_lin_vel": 2.0,
-    "track_ang_vel": 2.8,
+    "track_ang_vel": 3.0,
     "lin_vel_z": -1.0,
     "ang_vel_xy": -0.05,
     "orientation": -2.5,
     "base_height": -6.0,
     "joint_acc": -2.5e-7,
-    "action_rate": -0.02,
+    "action_rate": -0.05,
     "torques": -0.02,
     "wheel_acc": -2.5e-7,
     "collision": -1.5,
     "dof_limits": -2.0,
     "stand_still": -0.6,
-    "stand_vel": -3.0,
+    "stand_vel": -4.0,
     "alive": 0.6,
 }
 
@@ -78,19 +81,18 @@ class EnvCfg:
     """环境配置。所有可调参数都在这里，训练脚本通过 --set 覆盖。"""
 
     xml: str = str(ASSET)
-    action_mode: str = "servo"        # "servo" | "torque"
     sim_dt: float = 0.002
     decimation: int = 10              # 控制频率 = 1/(dt*decimation) = 50 Hz
     episode_steps: int = 500          # 10 s
 
     # --- 指令课程 ---
     cmd_lin_x: float = 0.6            # 最大前向速度 m/s
-    cmd_lin_y: float = 0.4            # 最大横移 m/s
-    cmd_ang_z: float = 1.0            # 最大偏航角速度 rad/s
+    cmd_lin_y: float = 0.12           # 最大横移 m/s（平行轮做不到，留一点让策略学会"抗"）
+    cmd_ang_z: float = 0.8            # 最大偏航角速度 rad/s（再高受轮胎横向摩擦限制）
     curriculum_start: float = 0.35    # 训练开始时指令范围的比例
     curriculum_steps: float = 30e6    # 用多少环境步线性放大到 100%
     cmd_resample_steps: int = 250     # 5 s 重采样一次指令
-    zero_cmd_prob: float = 0.15       # 15% 概率抽到"站住"指令
+    zero_cmd_prob: float = 0.25       # 25% 概率抽到"站住"指令
 
     # --- 动作 / 观测 ---
     action_filter_hz: float = 10.0
@@ -195,7 +197,8 @@ class W2LEnv(gym.Env):
 
         # ---------------- 状态缓冲 ---------------- #
         self.cmd = np.zeros(3)
-        self.last_action = np.zeros(ACT_DIM)
+        self.last_action = np.zeros(ACT_DIM)          # 归一化动作（奖励 / 延迟队列）
+        self.last_ctrl = NEUTRAL_ACTION.copy()        # 绝对目标（进观测）
         self.filtered_action = np.zeros(ACT_DIM)
         self.prev_dof_vel = np.zeros(ACT_DIM)
         self.prev_wheel_vel = np.zeros(4)
@@ -255,16 +258,15 @@ class W2LEnv(gym.Env):
         # 伺服增益（等价于真机上 Kp/Kd 有误差、电池电压变化）
         gs = rng.uniform(*cfg.kp_scale_range)
         ds = rng.uniform(*cfg.kd_scale_range)
-        if cfg.action_mode == "servo":
-            m.actuator_gainprm[self.act_leg, 0] = self._nominal["act_gain"][self.act_leg, 0] * gs
-            m.actuator_biasprm[self.act_leg, 1] = self._nominal["act_bias"][self.act_leg, 1] * gs
-            m.actuator_biasprm[self.act_leg, 2] = self._nominal["act_bias"][self.act_leg, 2] * ds
-            m.actuator_gainprm[self.act_wheel, 0] = self._nominal["act_gain"][self.act_wheel, 0] * ds
-            m.actuator_biasprm[self.act_wheel, 2] = self._nominal["act_bias"][self.act_wheel, 2] * ds
+        m.actuator_gainprm[self.act_leg, 0] = self._nominal["act_gain"][self.act_leg, 0] * gs
+        m.actuator_biasprm[self.act_leg, 1] = self._nominal["act_bias"][self.act_leg, 1] * gs
+        m.actuator_biasprm[self.act_leg, 2] = self._nominal["act_bias"][self.act_leg, 2] * ds
+        m.actuator_gainprm[self.act_wheel, 0] = self._nominal["act_gain"][self.act_wheel, 0] * ds
+        m.actuator_biasprm[self.act_wheel, 2] = self._nominal["act_bias"][self.act_wheel, 2] * ds
 
         # 动作延迟
         self._latency = int(rng.integers(self.cfg.latency_min, self.cfg.latency_max + 1))
-        self._action_queue = [np.zeros(ACT_DIM) for _ in range(self._latency)]
+        self._action_queue = [NEUTRAL_ACTION.copy() for _ in range(self._latency)]
 
         # 外力推扰
         lo, hi = self.cfg.push_interval_steps
@@ -325,6 +327,7 @@ class W2LEnv(gym.Env):
         self.cmd = self._sample_command(rng)
         self.last_action[:] = 0.0
         self.filtered_action[:] = 0.0
+        self.last_ctrl[:] = NEUTRAL_ACTION
         self.prev_dof_vel[:] = 0.0
         self.prev_wheel_vel[:] = 0.0
         self.steps = 0
@@ -354,6 +357,7 @@ class W2LEnv(gym.Env):
             a_exec = self.filtered_action
 
         self.ctrl[:] = self._action_to_ctrl(a_exec)
+        self.last_ctrl[:] = self.ctrl
         self._apply_ctrl(self.ctrl)
         mujoco.mj_step(self.model, self.data, nstep=self.cfg.decimation)
 
@@ -387,15 +391,11 @@ class W2LEnv(gym.Env):
 
     # ------------------------------------------------------------------ 内部
     def _action_to_ctrl(self, action: np.ndarray) -> np.ndarray:
-        if self.cfg.action_mode == "torque":
-            ctrl = np.empty(ACT_DIM)
-            ctrl[:12] = action[:12] * 0.98
-            ctrl[12:] = action[12:] * 0.29
-            return ctrl
-        q_target = DEFAULT_LEG_POS + action[:12] * ACTION_SCALE_LEG
-        q_target = np.clip(q_target, JOINT_POS_LOW, JOINT_POS_HIGH)
-        w_target = action[12:] * WHEEL_VEL_SCALE
-        return np.concatenate([q_target, w_target])
+        """训练内部：归一化动作 [-1,1] -> 绝对目标（12 角度 rad + 4 轮速 rad/s）。"""
+        a = np.asarray(action, dtype=np.float64)
+        q = np.clip(DEFAULT_LEG_POS + a[:12] * ACTION_SCALE_LEG, JOINT_POS_LOW, JOINT_POS_HIGH)
+        w = a[12:] * WHEEL_VEL_SCALE
+        return np.concatenate([q, w])
 
     def _apply_ctrl(self, ctrl: np.ndarray) -> None:
         self.data.ctrl[self.act_leg] = ctrl[:12]
@@ -425,7 +425,7 @@ class W2LEnv(gym.Env):
             qd_leg = qd_leg + rng.normal(0, cfg.obs_noise_dof_vel, 12) * n
             wd = wd + rng.normal(0, cfg.obs_noise_wheel, 4) * n
 
-        self.obs[:] = build_obs(gyro, grav, self.cmd, q_leg, qd_leg, wd, self.last_action)
+        self.obs[:] = build_obs(gyro, grav, self.cmd, q_leg, qd_leg, wd, self.last_ctrl)
 
     def _check_termination(self) -> bool:
         d, cfg = self.data, self.cfg
